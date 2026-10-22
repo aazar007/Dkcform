@@ -7,6 +7,9 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
 
+  /** Self-contained server bundle, which is what Prisma Cloud (Composer) deploys. */
+  output: "standalone",
+
   /** Do not advertise the framework in a response header. */
   poweredByHeader: false,
 
