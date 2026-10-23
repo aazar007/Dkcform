@@ -474,24 +474,24 @@ check("SVG rejected", readImageSize(Buffer.from('<svg width="512" height="512"><
 
 console.log("\n── OTP ──");
 process.env.OTP_SECRET = process.env.OTP_SECRET || "test-secret-for-verification-only";
-check("OTP configured", otpConfigured(), true);
+check("OTP configured", await otpConfigured(), true);
 const code = generateCode();
 check("code is 6 digits", /^\d{6}$/.test(code), true);
-check("hash is stable", hashCode(code, "A@ksu.edu.sa", "player-email") === hashCode(code, "a@ksu.edu.sa", "player-email"), true);
-check("hash ignores purpose mismatch", hashCode(code, "a@ksu.edu.sa", "player-email") === hashCode(code, "a@ksu.edu.sa", "edit-access"), false);
+check("hash is stable", (await hashCode(code, "A@ksu.edu.sa", "player-email")) === (await hashCode(code, "a@ksu.edu.sa", "player-email")), true);
+check("hash ignores purpose mismatch", (await hashCode(code, "a@ksu.edu.sa", "player-email")) === (await hashCode(code, "a@ksu.edu.sa", "edit-access")), false);
 
-const proof = makeProof("Ali@ksu.edu.sa", "player-email");
-check("proof verifies for its address", verifyProof(proof, "ali@ksu.edu.sa", "player-email"), true);
-check("proof rejected for another address", verifyProof(proof, "other@ksu.edu.sa", "player-email"), false);
-check("proof rejected for another purpose", verifyProof(proof, "ali@ksu.edu.sa", "edit-access"), false);
-check("tampered proof rejected", verifyProof(`${proof}x`, "ali@ksu.edu.sa", "player-email"), false);
-check("empty proof rejected", verifyProof("", "ali@ksu.edu.sa", "player-email"), false);
+const proof = await makeProof("Ali@ksu.edu.sa", "player-email");
+check("proof verifies for its address", await verifyProof(proof, "ali@ksu.edu.sa", "player-email"), true);
+check("proof rejected for another address", await verifyProof(proof, "other@ksu.edu.sa", "player-email"), false);
+check("proof rejected for another purpose", await verifyProof(proof, "ali@ksu.edu.sa", "edit-access"), false);
+check("tampered proof rejected", await verifyProof(`${proof}x`, "ali@ksu.edu.sa", "player-email"), false);
+check("empty proof rejected", await verifyProof("", "ali@ksu.edu.sa", "player-email"), false);
 
 /* OTP_SKIP_VERIFY mints a proof signed with a fixed dev key, so a skipped proof can
    never pass a real check — the whole point of the guard. */
 const skipProof = makeSkipProof("Ali@ksu.edu.sa", "player-email");
 check("a skipped proof is shaped like a proof", skipProof.includes("."), true);
-check("a skipped proof does not pass real verification", verifyProof(skipProof, "ali@ksu.edu.sa", "player-email"), false);
+check("a skipped proof does not pass real verification", await verifyProof(skipProof, "ali@ksu.edu.sa", "player-email"), false);
 
 console.log("\n── OTP_SKIP_VERIFY is a testing-only escape hatch ──");
 /* The flag must be inert in production. This cannot be exercised without booting the
@@ -642,14 +642,14 @@ check("the plain-text version keeps the raw text", escaped.text.includes("Ali \"
 console.log("\n── App base URL ──");
 const savedAppUrl = process.env.APP_URL;
 process.env.APP_URL = "https://ksucrown.sa/";
-check("APP_URL wins, trailing slash trimmed", appBaseUrl(), "https://ksucrown.sa");
-check("paths join without doubling", appUrl(appBaseUrl(), "/?tab=edit"), "https://ksucrown.sa/?tab=edit");
-check("paths join when missing a slash", appUrl(appBaseUrl(), "x"), "https://ksucrown.sa/x");
+check("APP_URL wins, trailing slash trimmed", await appBaseUrl(), "https://ksucrown.sa");
+check("paths join without doubling", appUrl(await appBaseUrl(), "/?tab=edit"), "https://ksucrown.sa/?tab=edit");
+check("paths join when missing a slash", appUrl(await appBaseUrl(), "x"), "https://ksucrown.sa/x");
 delete process.env.APP_URL;
 
 const fakeRequest = new Request("https://preview-abc.vercel.app/api/registrations", { method: "POST" });
-check("the request origin is used when APP_URL is unset", appBaseUrl(fakeRequest), "https://preview-abc.vercel.app");
-check("a malformed request falls back rather than throwing", typeof appBaseUrl({ url: "not a url" } as Request), "string");
+check("the request origin is used when APP_URL is unset", await appBaseUrl(fakeRequest), "https://preview-abc.vercel.app");
+check("a malformed request falls back rather than throwing", typeof await appBaseUrl({ url: "not a url" } as Request), "string");
 if (savedAppUrl !== undefined) process.env.APP_URL = savedAppUrl;
 
 console.log("\n── Email size (the inline logo dominates the message) ──");
@@ -914,52 +914,52 @@ const clearChannels = () => {
 // 1. Nothing but SMTP_* — both channels share it, exactly as before channels existed.
 Object.assign(process.env, sharedEnv);
 clearChannels();
-check("with no overrides both channels share the account", channelSettings("otp").host, channelSettings("confirmation").host);
-check("the shared host is used", channelSettings("otp").host, "shared.example.test");
-check("a shared account is not reported as dedicated", channelSettings("confirmation").dedicated, false);
+check("with no overrides both channels share the account", (await channelSettings("otp")).host, (await channelSettings("confirmation")).host);
+check("the shared host is used", (await channelSettings("otp")).host, "shared.example.test");
+check("a shared account is not reported as dedicated", (await channelSettings("confirmation")).dedicated, false);
 
 // 2. Override one channel only. The other must be untouched.
 process.env.SMTP_OTP_HOST = "codes.example.test";
 process.env.SMTP_OTP_USER = "codes@otp.test";
 process.env.SMTP_OTP_PORT = "2525";
-check("the overridden channel moves", channelSettings("otp").host, "codes.example.test");
-check("the overridden channel takes its own user", channelSettings("otp").user, "codes@otp.test");
-check("the overridden channel takes its own port", channelSettings("otp").port, 2525);
-check("the other channel is untouched", channelSettings("confirmation").host, "shared.example.test");
-check("an overridden channel reports itself dedicated", channelSettings("otp").dedicated, true);
+check("the overridden channel moves", (await channelSettings("otp")).host, "codes.example.test");
+check("the overridden channel takes its own user", (await channelSettings("otp")).user, "codes@otp.test");
+check("the overridden channel takes its own port", (await channelSettings("otp")).port, 2525);
+check("the other channel is untouched", (await channelSettings("confirmation")).host, "shared.example.test");
+check("an overridden channel reports itself dedicated", (await channelSettings("otp")).dedicated, true);
 
 /* Fields fall back one at a time, not as a block — so overriding only the host of
    a second account on the same provider is a one-line change. */
-check("an unset field still falls back", channelSettings("otp").from, "KSU Crown");
-check("the fallback From borrows the channel's own user", fromAddress(channelSettings("otp")), "KSU Crown <codes@otp.test>");
-check("the shared channel's From borrows the shared user", fromAddress(channelSettings("confirmation")), "KSU Crown <one@shared.test>");
+check("an unset field still falls back", (await channelSettings("otp")).from, "KSU Crown");
+check("the fallback From borrows the channel's own user", fromAddress((await channelSettings("otp"))), "KSU Crown <codes@otp.test>");
+check("the shared channel's From borrows the shared user", fromAddress((await channelSettings("confirmation"))), "KSU Crown <one@shared.test>");
 
 // 3. Both channels fully separate.
 process.env.SMTP_CONFIRMATION_HOST = "records.example.test";
 process.env.SMTP_CONFIRMATION_USER = "records@mail.test";
 process.env.SMTP_CONFIRMATION_REPLY_TO = "organisers@real.test";
-check("both channels can be fully separate", [channelSettings("otp").host, channelSettings("confirmation").host], ["codes.example.test", "records.example.test"]);
-check("a per-channel reply-to wins over the shared one", channelSettings("confirmation").replyTo, "organisers@real.test");
-check("a channel without its own reply-to falls back", channelSettings("otp").replyTo, "");
+check("both channels can be fully separate", [(await channelSettings("otp")).host, (await channelSettings("confirmation")).host], ["codes.example.test", "records.example.test"]);
+check("a per-channel reply-to wins over the shared one", (await channelSettings("confirmation")).replyTo, "organisers@real.test");
+check("a channel without its own reply-to falls back", (await channelSettings("otp")).replyTo, "");
 
 /* MAIL_REPLY_TO sits between them: a channel's own value beats it, and it beats
    the authenticated user, which is what `defaultReplyTo` would otherwise use. */
 process.env.MAIL_REPLY_TO = "org@example.test";
-check("the global reply-to is used when the channel has none", channelSettings("otp").replyTo, "org@example.test");
-check("the channel's own reply-to still wins", channelSettings("confirmation").replyTo, "organisers@real.test");
+check("the global reply-to is used when the channel has none", (await channelSettings("otp")).replyTo, "org@example.test");
+check("the channel's own reply-to still wins", (await channelSettings("confirmation")).replyTo, "organisers@real.test");
 
 // 4. Passwords are taken literally, unlike every other setting.
 process.env.SMTP_OTP_PASS = "  spaced secret  ";
-check("a password is not trimmed", channelSettings("otp").pass, "  spaced secret  ");
-check("other settings are trimmed", channelSettings("otp").host, "codes.example.test");
+check("a password is not trimmed", (await channelSettings("otp")).pass, "  spaced secret  ");
+check("other settings are trimmed", (await channelSettings("otp")).host, "codes.example.test");
 
 // 5. Configuration is per channel, so one can be missing while the other works.
 clearChannels();
 delete process.env.SMTP_HOST;
-check("a channel with no host is unconfigured", mailerConfigured("otp"), false);
-check("the other channel is unaffected", mailerConfigured("confirmation"), false);
+check("a channel with no host is unconfigured", (await mailerConfigured("otp")), false);
+check("the other channel is unaffected", (await mailerConfigured("confirmation")), false);
 Object.assign(process.env, sharedEnv);
-check("and configured once the host is back", mailerConfigured("otp"), true);
+check("and configured once the host is back", (await mailerConfigured("otp")), true);
 clearChannels();
 
 console.log("\n── Live feedback: what shows while typing ──");
@@ -1373,7 +1373,7 @@ check("the Arabic text form has the same code", codeAr.text.includes("123456"), 
    comparison cannot accept fails here rather than in a student's inbox. */
 for (const [language, email] of [["ar", codeAr], ["en", codeEn]] as const) {
   const shown = /font-size:34px[^>]*>\s*([0-9\u0660-\u0669\u06f0-\u06f9]{6})/.exec(email.html)?.[1] ?? "";
-  check(`the ${language} code round-trips back to the stored hash`, safeEqual(hashCode(digitsOnly(shown), "player@example.test", "player-email"), hashCode("123456", "player@example.test", "player-email")), true);
+  check(`the ${language} code round-trips back to the stored hash`, safeEqual(await hashCode(digitsOnly(shown), "player@example.test", "player-email"), await hashCode("123456", "player@example.test", "player-email")), true);
 }
 
 /* The digit helpers themselves. Arabic-Indic (U+0660) and Extended Arabic-Indic
@@ -1877,16 +1877,16 @@ console.log("\n── Security: deep-test regressions ──");
   check("a data: privacy link is refused", link("data:text/html,x"), "/privacy");
   check("a protocol-relative privacy link is refused", link("//evil.example/x"), "/privacy");
 
-  const scoped = makeProof("lead@ksu.edu.sa", "edit-access", "team-a");
-  check("an edit proof opens its own team", verifyProof(scoped, "lead@ksu.edu.sa", "edit-access", "team-a"), true);
-  check("an edit proof does not open another team", verifyProof(scoped, "lead@ksu.edu.sa", "edit-access", "team-b"), false);
-  check("an edit proof is not an unscoped proof", verifyProof(scoped, "lead@ksu.edu.sa", "edit-access"), false);
-  check("a player proof still verifies unscoped", verifyProof(makeProof("p@ksu.edu.sa", "player-email"), "p@ksu.edu.sa", "player-email"), true);
+  const scoped = await makeProof("lead@ksu.edu.sa", "edit-access", "team-a");
+  check("an edit proof opens its own team", await verifyProof(scoped, "lead@ksu.edu.sa", "edit-access", "team-a"), true);
+  check("an edit proof does not open another team", await verifyProof(scoped, "lead@ksu.edu.sa", "edit-access", "team-b"), false);
+  check("an edit proof is not an unscoped proof", await verifyProof(scoped, "lead@ksu.edu.sa", "edit-access"), false);
+  check("a player proof still verifies unscoped", await verifyProof(await makeProof("p@ksu.edu.sa", "player-email"), "p@ksu.edu.sa", "player-email"), true);
 
   const read = (path: string) => stripComments(readFileSync(path, "utf8"));
   for (const route of ["src/app/api/otp/verify/route.ts", "src/app/api/registrations/lookup/route.ts"]) {
     const source = read(route);
-    check(`${route.split("/").slice(-2, -1)[0]}: a guess is spent atomically before comparing`, /claimOtpAttempt\(record\.id, OTP_MAX_ATTEMPTS\)[\s\S]*safeEqual\(hashCode/.test(source), true);
+    check(`${route.split("/").slice(-2, -1)[0]}: a guess is spent atomically before comparing`, /claimOtpAttempt\(record\.id, OTP_MAX_ATTEMPTS\)[\s\S]*safeEqual\(await hashCode/.test(source), true);
     check(`${route.split("/").slice(-2, -1)[0]}: a code is consumed only once`, /consumeOtpOnce\(record\.id\)/.test(source), true);
   }
   check("a site-wide cap backs up the per-address admin lockout", /countAllAdminFailures\(since\)\) >= ADMIN_GLOBAL_MAX_FAILURES/.test(read("src/lib/admin-auth.ts")), true);
@@ -2194,7 +2194,7 @@ console.log("\n── Staff access ──");
       /findLiveStaffAccess\(email\)[\s\S]*?otpSkipVerify\(\)/.test(request), true);
 
     const verify = stripComments(readFileSync("src/app/api/admin/staff/verify/route.ts", "utf8"));
-    const skipBranch = /if \(otpSkipVerify\(\)\) \{([\s\S]*?)\n  \}/.exec(verify)?.[1] ?? "";
+    const skipBranch = /if \(await otpSkipVerify\(\)\) \{([\s\S]*?)\n  \}/.exec(verify)?.[1] ?? "";
     /* Skipping the code must not skip the allowlist — including a grant withdrawn
        moments ago, which is why the check is the live one. */
     check("skip mode still requires a live grant", /findLiveStaffAccess\(email\)/.test(skipBranch), true);
@@ -2241,11 +2241,11 @@ console.log("\n── The grand admin's second factor ──");
    * warns instead, permanently, and that banner is what makes the missing step visible.
    */
   check("no admin address means the sign-in still works",
-    /const emails = adminEmails\(\);\s*const email = emails\[0\][\s\S]{0,900}return sessionResponse\(\)/.test(stepOne), true);
+    /const emails = await adminEmails\(\);\s*const email = emails\[0\][\s\S]{0,900}return await sessionResponse\(\)/.test(stepOne), true);
   check("…and it warns loudly rather than silently",
     /ADMIN_EMAIL is not set[\s\S]{0,120}NO emailed/.test(stepOne), true);
   check("…and reports the state so the console can warn too",
-    /twoStep: adminTwoStep\(\)/.test(stepOne), true);
+    /twoStep: await adminTwoStep\(\)/.test(stepOne), true);
 
   /*
    * Several grand admins, functionally rather than by reading the source.
@@ -2259,26 +2259,26 @@ console.log("\n── The grand admin's second factor ──");
   const savedAdminEmail = process.env.ADMIN_EMAIL;
 
   process.env.ADMIN_EMAIL = " first@ksu.edu.sa , second@ksu.edu.sa;third@ksu.edu.sa\nfourth@ksu.edu.sa ";
-  check("commas, semicolons and newlines all separate addresses", adminEmails(),
+  check("commas, semicolons and newlines all separate addresses", await adminEmails(),
     ["first@ksu.edu.sa", "second@ksu.edu.sa", "third@ksu.edu.sa", "fourth@ksu.edu.sa"]);
-  check("the primary is the first address configured", adminEmail(), "first@ksu.edu.sa");
+  check("the primary is the first address configured", await adminEmail(), "first@ksu.edu.sa");
 
   process.env.ADMIN_EMAIL = " Ali@KSU.edu.sa, ali@ksu.edu.sa ";
-  check("case is folded and duplicates collapse", adminEmails(), ["ali@ksu.edu.sa"]);
+  check("case is folded and duplicates collapse", await adminEmails(), ["ali@ksu.edu.sa"]);
 
   process.env.ADMIN_EMAIL = "Ali <ali@ksu.edu.sa>";
-  check("a mail client's display-name form is understood", adminEmails(), ["ali@ksu.edu.sa"]);
+  check("a mail client's display-name form is understood", await adminEmails(), ["ali@ksu.edu.sa"]);
 
   process.env.ADMIN_EMAIL = "not-an-address, ok@ksu.edu.sa";
-  check("entries that are not addresses are dropped", adminEmails(), ["ok@ksu.edu.sa"]);
+  check("entries that are not addresses are dropped", await adminEmails(), ["ok@ksu.edu.sa"]);
 
   process.env.ADMIN_EMAIL = "a@ksu.edu.sa,b@ksu.edu.sa";
-  check("membership recognises every configured address", isAdminEmail(" B@KSU.edu.sa "), true);
-  check("membership still refuses a stranger", isAdminEmail("c@ksu.edu.sa"), false);
+  check("membership recognises every configured address", await isAdminEmail(" B@KSU.edu.sa "), true);
+  check("membership still refuses a stranger", await isAdminEmail("c@ksu.edu.sa"), false);
 
   process.env.ADMIN_EMAIL = "";
-  check("an empty value means there is no grand admin", adminEmails(), []);
-  check("…and no primary address", adminEmail(), null);
+  check("an empty value means there is no grand admin", await adminEmails(), []);
+  check("…and no primary address", await adminEmail(), null);
 
   if (savedAdminEmail === undefined) delete process.env.ADMIN_EMAIL;
   else process.env.ADMIN_EMAIL = savedAdminEmail;
@@ -2288,7 +2288,7 @@ console.log("\n── The grand admin's second factor ──");
   check("step two takes no address from the caller",
     /adminEmail\(\)/.test(stepTwo) && /JSON\.parse[\s\S]{0,200}email/.test(stepTwo), false);
   check("step two checks the code against the stored hash",
-    /safeEqual\(hashCode\(code, email, "admin-access"\), record\.codeHash\)/.test(stepTwo), true);
+    /safeEqual\(await hashCode\(code, email, "admin-access"\), record\.codeHash\)/.test(stepTwo), true);
   check("step two spends a guess before comparing",
     /claimOtpAttempt\(record\.id, OTP_MAX_ATTEMPTS\)[\s\S]{0,300}safeEqual/.test(stepTwo), true);
   check("step two consumes the code once",
@@ -2296,26 +2296,26 @@ console.log("\n── The grand admin's second factor ──");
   /* With no second factor configured there is no code to check, so completing a sign-in
      here would skip step one entirely. It must refuse. */
   check("step two refuses when no code can exist",
-    /if \(!adminTwoStep\(\)\)[\s\S]{0,200}Two-step sign-in is not configured/.test(stepTwo), true);
+    /if \(!\(await adminTwoStep\(\)\)\)[\s\S]{0,200}Two-step sign-in is not configured/.test(stepTwo), true);
 
   /* The admin address is configuration, and its absence means different things in each
      environment — a fresh clone must work, a deployment must not silently lose the step. */
   const auth = stripComments(readFileSync("src/lib/admin-auth.ts", "utf8"));
   check("the admin address is read from the environment",
-    /process\.env\.ADMIN_EMAIL/.test(auth), true);
+    /getEnv\("ADMIN_EMAIL"\)/.test(auth), true);
   /* More than one grand admin: the list is split on commas, semicolons or whitespace, and
      the first address stays primary so reordering is the only way to move the anchor. */
   check("several grand-admin addresses are supported",
-    /export function adminEmails\(\)/.test(auth), true);
+    /export async function adminEmails\(\)/.test(auth), true);
   check("the list is split on commas, semicolons and whitespace",
     /split\(\/\[\\s,;\]\+\//.test(auth), true);
   check("the primary address is the first configured",
-    /return adminEmails\(\)\[0\] \?\? null/.test(auth), true);
+    /return \(await adminEmails\(\)\)\[0\] \?\? null/.test(auth), true);
   /* The step is in force exactly when there is somewhere to send the code — so the function
      answers "is it running", not "ought it to be". Those came apart once and cost a
      production lockout; see the note above. */
   check("the step is on exactly when it can send",
-    /return Boolean\(adminEmail\(\)\)/.test(auth), true);
+    /return Boolean\(await adminEmail\(\)\)/.test(auth), true);
   check("it no longer depends on NODE_ENV",
     /adminTwoStep[\s\S]{0,200}NODE_ENV === "production"/.test(auth), false);
 
@@ -2364,7 +2364,7 @@ console.log("\n── The console is not at /admin ──");
   /* The CSP kill switch must not be able to un-hide the console. */
   check("the rewrite happens before the CSP kill switch",
     middleware.indexOf("await consoleRoute(request)") <
-      middleware.indexOf('process.env.CSP_STRICT === "0"'), true);
+      middleware.indexOf('(await getEnv("CSP_STRICT")) === "0"'), true);
   /* A rewrite that drops the nonce headers would break every script on the console. */
   check("the rewrite carries the security headers",
     /NextResponse\.rewrite\(route\.url, \{ request: \{ headers \} \}\)/.test(middleware), true);
@@ -2394,7 +2394,7 @@ console.log("\n── The console is not at /admin ──");
   /* Reading the secret at call time is what lets the value be swapped and, more
      importantly, what stops a build-time `undefined` becoming a fixed public path. */
   check("the path is derived from the live secret",
-    /process\.env\.ADMIN_SECRET\?\.trim\(\)/.test(adminPathSource), true);
+    /getEnv\("ADMIN_SECRET"\)/.test(adminPathSource), true);
   check("no secret in production means no console",
     /if \(process\.env\.NODE_ENV !== "production"\) return DEV_ADMIN_SECRET;[\s\S]{0,80}return null;/
       .test(adminPathSource), true);
@@ -2618,14 +2618,14 @@ console.log("\n── The console's sheet link ──");
 
   try {
     delete env.SHEET_URL;
-    check("no SHEET_URL means no link", sheetUrl(), null);
+    check("no SHEET_URL means no link", await sheetUrl(), null);
 
     env.SHEET_URL = "   ";
-    check("a blank SHEET_URL means no link", sheetUrl(), null);
+    check("a blank SHEET_URL means no link", await sheetUrl(), null);
 
     const real = "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0";
     env.SHEET_URL = real;
-    check("a real sheets address is accepted", sheetUrl() !== null, true);
+    check("a real sheets address is accepted", await (await sheetUrl()) !== null, true);
     check("it is recognised as a sheets address", looksLikeSheetUrl(real), true);
     /* The webhook is a script.google.com URL, which must NOT be mistaken for the sheet. */
     check("the Apps Script URL is not a sheets address",
@@ -2634,11 +2634,11 @@ console.log("\n── The console's sheet link ──");
     /* The value lands in an href on the console — the one page holding every setting and
        every registration — so a non-http scheme must be refused, not rendered. */
     env.SHEET_URL = "javascript:alert(1)";
-    check("a javascript: URL is refused", sheetUrl(), null);
+    check("a javascript: URL is refused", await sheetUrl(), null);
     env.SHEET_URL = "data:text/html,<script>alert(1)</script>";
-    check("a data: URL is refused", sheetUrl(), null);
+    check("a data: URL is refused", await sheetUrl(), null);
     env.SHEET_URL = "not a url at all";
-    check("a malformed URL is refused", sheetUrl(), null);
+    check("a malformed URL is refused", await sheetUrl(), null);
   } finally {
     if (original === undefined) delete env.SHEET_URL;
     else env.SHEET_URL = original;
@@ -2662,7 +2662,7 @@ console.log("\n── The console's sheet link ──");
   /* Both doors pass it, because staff may export too. */
   for (const path of ["src/app/admin/page.tsx", "src/app/admin/staff/page.tsx"]) {
     check(`${path.split("/").slice(-2)[0]} passes the sheet link`,
-      /sheetUrl=\{sheetUrl\(\)\}/.test(readFileSync(path, "utf8")), true);
+      /sheetUrl=\{await sheetUrl\(\)\}/.test(readFileSync(path, "utf8")), true);
   }
   check("the example env documents SHEET_URL",
     /SHEET_URL=/.test(readFileSync(".env.example", "utf8")), true);
@@ -2690,7 +2690,7 @@ async function hashedSecretChecks() {
     check("hashing twice gives different values", hashAdminSecret(password) !== hashed, true);
 
     env.ADMIN_SECRET = hashed;
-    check("a hashed secret is recognised as hashed", adminSecretIsHashed(), true);
+    check("a hashed secret is recognised as hashed", await adminSecretIsHashed(), true);
     check("the right password is accepted", await checkAdminSecret(password), true);
     check("a wrong password is refused", await checkAdminSecret("something else entirely"), false);
     check("a prefix of the password is refused", await checkAdminSecret(password.slice(0, -1)), false);
@@ -2705,7 +2705,7 @@ async function hashedSecretChecks() {
     /* --- sha256, for a hash from a general-purpose tool ------------------ */
     const { createHash } = await import("node:crypto");
     env.ADMIN_SECRET = `sha256:${createHash("sha256").update(password).digest("hex")}`;
-    check("a sha256 secret is recognised as hashed", adminSecretIsHashed(), true);
+    check("a sha256 secret is recognised as hashed", await adminSecretIsHashed(), true);
     check("the sha256 form verifies", await checkAdminSecret(password), true);
     check("the sha256 form rejects a wrong password", await checkAdminSecret("nope"), false);
     /* Uppercase hex is the same hash, and a person pasting one should not be locked out. */
@@ -2716,7 +2716,7 @@ async function hashedSecretChecks() {
     env.ADMIN_SECRET = "an-ordinary-secret";
     check("a plaintext secret still works", await checkAdminSecret("an-ordinary-secret"), true);
     check("a plaintext secret rejects a wrong value", await checkAdminSecret("other"), false);
-    check("a plaintext secret is not reported as hashed", adminSecretIsHashed(), false);
+    check("a plaintext secret is not reported as hashed", await adminSecretIsHashed(), false);
 
     /* --- values we cannot verify are refused, not misinterpreted -------- */
     /* The failure to avoid: treating `$2b$10$…` as the literal password. That would
@@ -2886,14 +2886,14 @@ async function credentialChecks() {
   /* ⚠️ The pepper must NOT be derived from ADMIN_SECRET. That coupling is what made a
      password set locally stop working on a deployment — silently, and reading as "wrong
      password". Its own variable, empty by default. */
-  check("the pepper is its own variable", /process\.env\.ADMIN_PEPPER/.test(auth), true);
+  check("the pepper is its own variable", /getEnv\("ADMIN_PEPPER"\)/.test(auth), true);
   check("the pepper is empty when unset",
-    /const configured = process\.env\.ADMIN_PEPPER\?\.trim\(\);\s*if \(!configured\) return Buffer\.alloc\(0\)/.test(auth),
+    /const configured = \(await getEnv\("ADMIN_PEPPER"\)\)\?\.trim\(\);\s*if \(!configured\) return Buffer\.alloc\(0\)/.test(auth),
     true);
   /* Checked on the function body alone: a window wide enough to catch the next function
      would match an `adminSecret()` call there and pass for the wrong reason. */
   {
-    const body = /export function adminPepper\(\): Buffer \{([\s\S]*?)\n\}/.exec(auth)?.[1] ?? "";
+    const body = /export async function adminPepper\(\): Promise<Buffer> \{([\s\S]*?)\n\}/.exec(auth)?.[1] ?? "";
     check("the pepper function was found", body.length > 0, true);
     check("the pepper is not derived from ADMIN_SECRET", /adminSecret\(\)/.test(body), false);
   }
@@ -2931,7 +2931,7 @@ console.log("\n── Rate-limit keys cannot be chosen by the caller ──");
 
     /* The attack: a forged platform header on a non-Vercel deployment. */
     check("a forged x-vercel-forwarded-for is ignored off Vercel",
-      callerAddress(req({ "x-vercel-forwarded-for": "1.2.3.4" })), "local");
+      await callerAddress(req({ "x-vercel-forwarded-for": "1.2.3.4" })), "local");
     /*
      * **`X-Forwarded-For` is not trusted at all off-Vercel.**
      *
@@ -2942,40 +2942,42 @@ console.log("\n── Rate-limit keys cannot be chosen by the caller ──");
      * Rotation is therefore useless to an attacker now: every request lands in the same
      * shared bucket.
      */
-    const rotated = ["1.1.1.1", "2.2.2.2", "3.3.3.3"].map((spoof) =>
-      callerAddress(req({ "x-forwarded-for": spoof })),
+    const rotated = await Promise.all(
+      ["1.1.1.1", "2.2.2.2", "3.3.3.3"].map((spoof) =>
+        callerAddress(req({ "x-forwarded-for": spoof })),
+      ),
     );
     check("rotating X-Forwarded-For gives one bucket, not many",
       new Set(rotated).size, 1);
     check("…and that bucket is the shared one", rotated[0], "local");
     check("an appended chain is not trusted either",
-      callerAddress(req({ "x-forwarded-for": "9.9.9.9, 8.8.8.8" })), "local");
+      await callerAddress(req({ "x-forwarded-for": "9.9.9.9, 8.8.8.8" })), "local");
     /* Also client-settable, so not read implicitly at all — trusting it as a last resort
        would reopen the same hole. */
     check("a bare x-real-ip is not trusted by default",
-      callerAddress(req({ "x-real-ip": "7.7.7.7" })), "local");
+      await callerAddress(req({ "x-real-ip": "7.7.7.7" })), "local");
     check("no headers falls back to one shared bucket",
-      callerAddress(req({})), "local");
+      await callerAddress(req({})), "local");
 
     /* On Vercel the platform overwrites these, so they are authoritative there. */
     process.env.VERCEL = "1";
     check("on Vercel the edge header is used",
-      callerAddress(req({ "x-vercel-forwarded-for": "1.2.3.4" })), "1.2.3.4");
+      await callerAddress(req({ "x-vercel-forwarded-for": "1.2.3.4" })), "1.2.3.4");
     check("on Vercel a bare X-Forwarded-For is still ignored",
-      callerAddress(req({ "x-forwarded-for": "9.9.9.9" })), "local");
+      await callerAddress(req({ "x-forwarded-for": "9.9.9.9" })), "local");
     delete process.env.VERCEL;
 
     /* An operator naming the authoritative header is the precise answer. */
     process.env.TRUSTED_IP_HEADER = "x-real-ip";
     check("TRUSTED_IP_HEADER is honoured",
-      callerAddress(req({ "x-real-ip": "7.7.7.7" })), "7.7.7.7");
+      await callerAddress(req({ "x-real-ip": "7.7.7.7" })), "7.7.7.7");
     check("…and outranks a forged platform header",
-      callerAddress(req({ "x-real-ip": "7.7.7.7", "x-vercel-forwarded-for": "1.2.3.4" })),
+      await callerAddress(req({ "x-real-ip": "7.7.7.7", "x-vercel-forwarded-for": "1.2.3.4" })),
       "7.7.7.7");
     /* Configuring trust must never end up trusting *more* than nothing: if the named
        header is absent, do not fall back to something the client wrote. */
     check("a configured-but-absent header does not fall back to X-Forwarded-For",
-      callerAddress(req({ "x-forwarded-for": "5.5.5.5" })), "local");
+      await callerAddress(req({ "x-forwarded-for": "5.5.5.5" })), "local");
   } finally {
     if (original.vercel === undefined) delete process.env.VERCEL;
     else process.env.VERCEL = original.vercel;
@@ -2986,7 +2988,7 @@ console.log("\n── Rate-limit keys cannot be chosen by the caller ──");
   /* And the source must not drift back. */
   const source = stripComments(readFileSync("src/lib/rate-limit.ts", "utf8"));
   check("the trust decision is gated on VERCEL",
-    /if \(process\.env\.VERCEL\)/.test(source), true);
+    /if \(await getEnv\("VERCEL"\)\)/.test(source), true);
   check("X-Forwarded-For is never read as a fallback",
     /headers\.get\("x-forwarded-for"\)/.test(source), false);
   check("x-real-ip is not read implicitly", /return realIp \|\| "local"/.test(source), false);
@@ -3123,11 +3125,11 @@ console.log("\n── The edit-lookup endpoint is not an existence oracle ──
     /countAllRecentOtps\("player-email"/.test(otpRequest), true);
   const otp = readFileSync("src/lib/otp.ts", "utf8");
   check("the ceiling is a number, not a placeholder",
-    /export const OTP_GLOBAL_MAX_PER_WINDOW = (\d+|globalMax\(\));/.test(otp), true);
+    /export async function otpGlobalMax\(\): Promise<number> \{[\s\S]*?return 300;/.test(otp), true);
   /* `OTP_GLOBAL_MAX` exists so an operator can tune it and so this suite can lower it to
      exercise the ceiling without minting three hundred codes. A value that is not a
      positive integer must be ignored — a typo cannot be allowed to disable the brake. */
-  check("the ceiling can be configured", /process\.env\.OTP_GLOBAL_MAX/.test(otp), true);
+  check("the ceiling can be configured", /getEnv\("OTP_GLOBAL_MAX"\)/.test(otp), true);
   check("a nonsense override is ignored rather than trusted",
     /Number\.isInteger\(parsed\) && parsed > 0 \? parsed : 300/.test(otp), true);
 }

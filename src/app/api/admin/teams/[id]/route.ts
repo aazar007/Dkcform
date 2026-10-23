@@ -17,13 +17,13 @@ export const dynamic = "force-dynamic";
 
 /** Shared gate for both verbs. */
 async function guard(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: UNAUTHORISED_MESSAGE }, { status: 401 });
   }
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return NextResponse.json({ error: "DATABASE_URL is not set." }, { status: 503 });
   }
   return null;

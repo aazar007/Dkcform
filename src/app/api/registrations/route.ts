@@ -6,7 +6,7 @@ import { requestedLanguage } from "@/lib/i18n";
 import { loadConfig } from "@/lib/config-store";
 import { DatabaseNotConfiguredError, databaseConfigured } from "@/lib/db";
 import { makeReference } from "@/lib/utils";
-import { otpConfigured, otpSkipVerify, verifyProof } from "@/lib/otp";
+import { otpConfigured, otpSkipVerify, playerProofChecker } from "@/lib/otp";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { validatePayload } from "@/lib/validation";
 import { checkSheetConnection, sheetsConfigured } from "@/lib/sheets";
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
   const verbose = process.env.NODE_ENV !== "production";
 
-  const database = databaseConfigured()
+  const database = (await databaseConfigured())
     ? await registrationCounts()
         .then((counts) => ({ ok: true as const, ...counts }))
         .catch((error: unknown) => ({
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         }))
     : { ok: false as const, error: "DATABASE_URL is not set" };
 
-  const sheets = sheetsConfigured() ? await checkSheetConnection() : null;
+  const sheets = (await sheetsConfigured()) ? await checkSheetConnection() : null;
 
   const ok = database.ok;
   return NextResponse.json(
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   if (declared > 200_000) {
     return NextResponse.json({ error: "That request is too large." }, { status: 413 });
   }
-  const limited = rateLimit(clientKey(request, "register"), 10, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "register"), 10, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     console.error("[registrations:create] DATABASE_URL is not set");
     return NextResponse.json(
       { error: "Registration is temporarily unavailable. Please try again later." },
@@ -112,10 +112,10 @@ export async function POST(request: Request) {
     // Without OTP_SECRET nothing can be verified, so every submission fails the
     // email check with a clear message rather than being waved through — unless
     // OTP_SKIP_VERIFY is on (local testing only), which accepts any address.
-    verifyEmail: otpSkipVerify()
+    verifyEmail: (await otpSkipVerify())
       ? () => true
-      : otpConfigured()
-        ? (email, proof) => verifyProof(proof, email, "player-email")
+      : (await otpConfigured())
+        ? await playerProofChecker(body)
         : undefined,
   });
   if (!parsed.ok) {
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
          * make them submit a second time. */
         const confirmed = await sendRegistrationConfirmation(
           team,
-          appBaseUrl(request),
+          await appBaseUrl(request),
           requestedLanguage(body),
         );
 
