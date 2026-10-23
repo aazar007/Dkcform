@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { CONSOLE_HEADER, adminPath, staffPath } from "@/lib/admin-path";
+import { getEnv } from "@/lib/env";
 
 /**
  * A path that matches no route, so Next renders its ordinary 404.
@@ -88,7 +89,7 @@ export async function middleware(request: NextRequest) {
    * belongs anyway. Recorded here because it looks like an oversight and is not one.
    */
 
-  if (process.env.CSP_STRICT === "0") {
+  if ((await getEnv("CSP_STRICT")) === "0") {
     const response = route ? NextResponse.rewrite(route.url) : NextResponse.next();
     if (!dev) response.headers.set("Strict-Transport-Security", hsts);
     return response;

@@ -9,7 +9,7 @@
     "start": "next start -p 3001",
     "postinstall": "npm run prisma7 -- generate && prisma contract emit",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/self-test.ts",
+    "test": "tsx scripts/self-test.mts",
     "check": "tsx scripts/check-stack.ts",
     "admin:hash": "tsx scripts/hash-admin-secret.ts",
     "email:preview": "tsx scripts/preview-email.ts",

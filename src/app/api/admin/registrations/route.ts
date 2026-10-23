@@ -15,13 +15,13 @@ export const dynamic = "force-dynamic";
  * presents it — a summary line per team that expands into the people.
  */
 export async function GET(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: UNAUTHORISED_MESSAGE }, { status: 401 });
   }
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return NextResponse.json(
       { error: "DATABASE_URL is not set, so there is nothing to read." },
       { status: 503 },

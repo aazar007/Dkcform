@@ -6,7 +6,7 @@ import {
   isRelayRefusal,
 } from "@/lib/mailer";
 import {
-  OTP_GLOBAL_MAX_PER_WINDOW,
+  otpGlobalMax,
   OTP_MAX_REQUESTS_PER_WINDOW,
   OTP_REQUEST_WINDOW_MINUTES,
   OTP_TTL_MINUTES,
@@ -58,17 +58,17 @@ export async function POST(request: Request) {
   /* Local testing: skip the email entirely. The flag is ignored in production (see
      `otpSkipVerify`), so this branch can never ship — but the address still has to
      be a well-formed university email, because the rest of the form treats it as one. */
-  if (otpSkipVerify()) {
+  if (await otpSkipVerify()) {
     return NextResponse.json({ ok: true, email, skipVerify: true });
   }
 
-  if (!otpConfigured()) {
+  if (!(await otpConfigured())) {
     return NextResponse.json(
       { error: "Email verification is not configured on this deployment." },
       { status: 503 },
     );
   }
-  if (!mailerConfigured("otp") && !mailerAllowsLogFallback("otp")) {
+  if (!(await (await mailerConfigured("otp"))) && !(await mailerAllowsLogFallback("otp"))) {
     return NextResponse.json(
       { error: "Email verification is temporarily unavailable. Please contact the organisers." },
       { status: 503 },
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Registration is closed." }, { status: 403 });
   }
 
-  const limited = rateLimit(clientKey(request, "otp-request"), 12, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "otp-request"), 12, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment and try again." },
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     /* The site-wide ceiling. A per-address cap is no bound at all against a script that
        changes the address each time — which is how an arbitrary number of rows and emails
        is achievable here. This caps the whole endpoint rather than one identity. */
-    if ((await countAllRecentOtps("player-email", otpRequestWindowStart())) >= OTP_GLOBAL_MAX_PER_WINDOW) {
+    if ((await countAllRecentOtps("player-email", otpRequestWindowStart())) >= (await otpGlobalMax())) {
       console.warn("[otp:request] global verification-code ceiling reached; refusing");
       return NextResponse.json(
         { error: "We are sending a lot of codes right now. Please try again in a few minutes." },
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     const record = await createOtp({
       email,
       purpose: "player-email",
-      codeHash: hashCode(code, email, "player-email"),
+      codeHash: await hashCode(code, email, "player-email"),
       expiresAt: otpExpiry(),
     });
 

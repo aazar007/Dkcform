@@ -27,14 +27,14 @@ export const dynamic = "force-dynamic";
  * happens to expire.
  */
 export async function POST(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json(
       { error: "Admin access is not configured on this deployment." },
       { status: 503 },
     );
   }
 
-  const limited = rateLimit(clientKey(request, "staff-verify"), 30, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "staff-verify"), 30, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   /* Local testing: sign in with no code. `otpSkipVerify` is a no-op in production,
      and the live-grant check below is *not* skipped — somebody who was never granted
      access, or whose grant has been withdrawn, still cannot get in. */
-  if (otpSkipVerify()) {
+  if (await otpSkipVerify()) {
     if (!email) {
       return NextResponse.json({ error: "Enter your email address" }, { status: 400 });
     }
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       );
     }
     await markStaffLogin(email).catch(() => {});
-    return sessionResponse(email);
+    return await sessionResponse(email);
   }
 
   if (!email || code.length !== 6) {
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!safeEqual(hashCode(code, email, "staff-access"), record.codeHash)) {
+    if (!safeEqual(await hashCode(code, email, "staff-access"), record.codeHash)) {
       return NextResponse.json({ error: "That code is not correct." }, { status: 400 });
     }
 
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 
     await markStaffLogin(email).catch(() => {});
 
-    return sessionResponse(email);
+    return await sessionResponse(email);
   } catch (error) {
     console.error("[staff:verify]", error);
     return NextResponse.json({ error: "We could not verify that code. Try again." }, { status: 502 });
@@ -133,12 +133,12 @@ export async function POST(request: Request) {
  * one of them would end up without `HttpOnly`, or with the wrong `SameSite`, and the
  * difference would only be noticed by an attacker.
  */
-function sessionResponse(email: string) {
+async function sessionResponse(email: string) {
   const response = NextResponse.json(
     { ok: true, email, role: "staff" as const },
     { headers: { "Cache-Control": "no-store" } },
   );
-  const token = createStaffSession(email);
+  const token = await createStaffSession(email);
   if (token) response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return response;
 }
